@@ -16,6 +16,24 @@ options(gargle_oauth_email = TRUE,
 
 sheet_id <- googledrive::drive_get("word-games")$id
 
+playerTabPanelUI <- function(playerName) {
+  tabPanel(playerName, fluidRow(
+    div(class = "panel-heading", style = "padding-left: 15px; padding-right: 15px;", 
+        h4(paste("Wordle")),
+        plotOutput(paste("wordleWins", playerName, sep = "_"), width = '100%', height = '200px')
+    ),
+    div(class = "panel-heading", style = "padding-left: 15px; padding-right: 15px;",
+        h4(paste("Connections")),
+        plotOutput(paste("connectionsWins", playerName, sep = "_"), width = '100%', height = '200px')
+    ),
+    div(class = "panel-heading", style = "padding-left: 15px; padding-right: 15px;",
+        h4(paste("Mini")),
+        plotOutput(paste("crosswordWins", playerName, sep = "_"), width = '100%', height = '200px')
+    )
+  ))
+}
+
+
 ui  <- dashboardPage(
   dashboardHeader(title = "🔠🗞 NYT Word Games Logger", titleWidth = 450),
   dashboardSidebar(disable = TRUE),
@@ -54,9 +72,11 @@ ui  <- dashboardPage(
                       column(
                         8,
                         fluidRow(
-                        h3("Wordle Win Margins"),
-                        hr(),
-                        plotOutput("wordleWins", width = '100%', height = '300px')
+                          tabsetPanel(
+                            id = "player_tabs",
+                            playerTabPanelUI("Aman"),
+                            playerTabPanelUI("Rhea")
+                          )
                       )),
                     )
                   )),
@@ -72,6 +92,23 @@ ui  <- dashboardPage(
                   ))
                 ))
 )
+
+renderPlayerPlots <- function(playerName, output, dataFunc) {
+  output[[paste("wordleWins", playerName, sep = "_")]] <- renderPlot({
+    data <- dataFunc()
+    makeGameHeatmap(data, playerName, "wordle", "Win advantage")
+  })
+  
+  output[[paste("connectionsWins", playerName, sep = "_")]] <- renderPlot({
+    data <- dataFunc()
+    makeGameHeatmap(data, playerName, "connections", "Win advantage")
+  })
+  
+  output[[paste("crosswordWins", playerName, sep = "_")]] <- renderPlot({
+    data <- dataFunc()
+    makeGameHeatmap(data, playerName, "crossword", "Time advantage")
+  })
+}
 
 
 
@@ -109,11 +146,9 @@ server <- function (input, output, session) {
   })
   
   # Game heatmaps
-  output$wordleWins <- renderPlot({
-    data <- main_sheet_values()
-   # makeGameHeatmap(data, "Aman", "wordle")
-    # makeGameHeatmap(data, "Aman", "connections")
-  })
+  renderPlayerPlots("Aman", output, main_sheet_values)
+  renderPlayerPlots("Rhea", output, main_sheet_values)
+
   
   todays_entries <- reactive({
     data <- values()
