@@ -47,3 +47,14 @@ judge_wordle <- function(a, b) {
   tibble(wonBy = game_status, margin = margin) %>%
     distinct()
 }
+
+todays_wordle <- function(todays_data) {
+  a_connections <- todays_data$wordle[todays_data$player == "Aman"]
+  b_connections <- todays_data$wordle[todays_data$player == "Rhea"]
+  
+  a_c <- process_wordle(a_connections, "Aman")
+  b_c <- process_wordle(b_connections, "Rhea")
+  wordle_result <- judge_wordle(a_c, b_c)
+  
+  return(wordle_result)
+}

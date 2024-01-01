@@ -1,24 +1,21 @@
 library(tidyverse)
 
 # Sample inputs
-a_connections <- "Connections 
-Puzzle #204
-🟩🟩🟩🟩
-🟪🟪🟪🟪
-🟨🟨🟨🟨
-🟦🟦🟦🟦
-"
-
-b_connections <- "
-Connections 
-Puzzle #204
-🟩🟩🟩🟨
-🟦🟦🟦🟦
-🟩🟨🟩🟩
-🟨🟨🟨🟨
-🟩🟩🟩🟩
-🟪🟪🟪🟪
-"
+# a_connections <- "Connections 
+# Puzzle #204
+# 🟩🟩🟩🟩
+# 🟪🟪🟪🟪
+# 🟨🟨🟨🟨
+# 🟦🟦🟦🟦"
+# 
+# b_connections <- "Connections 
+# Puzzle #204
+# 🟩🟩🟩🟨
+# 🟦🟦🟦🟦
+# 🟩🟨🟩🟩
+# 🟨🟨🟨🟨
+# 🟩🟩🟩🟩
+# 🟪🟪🟪🟪"
 
 
 process_connections <- function(connections, player) {
@@ -77,6 +74,21 @@ judge_connections <- function(a, b) {
 }
 
 
-a_c <- process_connections(a_connections, "player1")
-b_c <- process_connections(b_connections, "player2")
-judge_connections(a_c, b_c)
+# a_c <- process_connections(a_connections, "player1")
+# b_c <- process_connections(b_connections, "player2")
+# judge_connections(a_c, b_c)
+
+todays_connections <- function(todays_data) {
+  # Process the connections results for Aman and Rhea
+  a_connections <-
+    todays_data$connections[todays_data$player == "Aman"]
+  b_connections <-
+    todays_data$connections[todays_data$player == "Rhea"]
+  
+  a_c <- process_connections(a_connections, "Aman")
+  b_c <- process_connections(b_connections, "Rhea")
+  connections_result <- judge_connections(a_c, b_c)
+  
+  return(connections_result)
+  
+}

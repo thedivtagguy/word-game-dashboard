@@ -1,73 +1,219 @@
 library(shiny)
 library(tidyverse)
 library(shinydashboard)
-library(DT)  
-source('connections.r')
-source('wordle.r')
+library(DT)
+library(googledrive)
+library(googlesheets4)
+library(shinyjs)
+source("connections.r")
+source("wordle.r")
+source("calendar.r")
+source("playerDataCheck.r")
+source('crossword.r')
+source('gameHeatmaps.r')
+options(gargle_oauth_email = TRUE,
+        gargle_oauth_cache = "./.secrets")
 
-ui <- dashboardPage(
-  dashboardHeader(title = "Game Results Logger"),
+sheet_id <- googledrive::drive_get("word-games")$id
+
+ui  <- dashboardPage(
+  dashboardHeader(title = "🔠🗞 NYT Word Games Logger", titleWidth = 450),
   dashboardSidebar(disable = TRUE),
-  dashboardBody(
-    fluidRow(
-      box(title = "Game Inputs", status = "primary", solidHeader = TRUE, width = 12, collapsible = TRUE,
-          fluidRow(
-            column(4,
-                   textAreaInput("a_connections", "A Connections", ""),
-                   textAreaInput("b_connections", "R Connections", ""),
-                   
-            ),
-            
-            column(4,
-                   textAreaInput("a_wordle", "A Wordle", ""),
-                   textAreaInput("b_wordle", "R Wordle", "")
-            )
-          ),
-          fluidRow(
-            column(12,
-                   actionButton("submit", "Submit", class = "btn-primary")
-            )
-          )
-      )
-    ),
-    fluidRow(
-      box(title = "Results", status = "info", solidHeader = TRUE, width = 12,
-          DT::dataTableOutput("resultsTable")
-      )
-    )
-  )
+  dashboardBody(useShinyjs(),
+                tabsetPanel(
+                  tabPanel("Player Log", fluidRow(
+                    box(
+                      status = "warning",
+                      width = 12,
+                      column(
+                        4,
+                        h3("💾 Log your day"),
+                        hr(),
+                        selectInput("player", "Choose player", choices = c("Aman", "Rhea")),
+                        textAreaInput("player_wordle", "Wordle", ""),
+                        textAreaInput("player_connections", "Connections", ""),
+                        numericInput("player_crossword", "Crossword Time", value = NA),
+                        actionButton("submit", "Submit", class = "btn-primary")
+                      ),
+                      column(8,
+                             h3("🏆 Wins"),
+                             hr(),
+                             DT::dataTableOutput("mainSheetTable"))
+                    ),
+                    box(
+                      title = "📊 Visualizations",
+                      status = "primary",
+                      solidHeader = TRUE,
+                      width = 12,
+                      column(
+                        4,
+                        h3("Play streak"),
+                        hr(),
+                        plotOutput("calendarHeatmap", width = '100%', height = '800px')
+                      ),
+                      column(
+                        8,
+                        fluidRow(
+                        h3("Wordle Win Margins"),
+                        hr(),
+                        plotOutput("wordleWins", width = '100%', height = '300px')
+                      )),
+                    )
+                  )),
+                  tabPanel("Raw Data", fluidRow(
+                    box(
+                      title = "Raw Data",
+                      status = "info",
+                      solidHeader = TRUE,
+                      width = 12,
+                      collapsible = TRUE,
+                      DT::dataTableOutput("resultsTable")
+                    )
+                  ))
+                ))
 )
 
 
-server <- function(input, output, session) {
-  results <- reactiveVal(tibble(date = as.Date(character()), gameType = character(), wonBy = character(), margin = integer()))
-  
-  observeEvent(input$submit, {
-    if (isTruthy(input$a_connections) && isTruthy(input$b_connections) &&
-        isTruthy(input$a_wordle) && isTruthy(input$b_wordle)) {
-      
-      a_con_processed <- process_connections(input$a_connections, "Player A")
-      b_con_processed <- process_connections(input$b_connections, "Player R")
-      con_judgement <- judge_connections(a_con_processed, b_con_processed)
-      
-      wordle_a_processed <- process_wordle(input$a_wordle, "Player A")
-      wordle_b_processed <- process_wordle(input$b_wordle, "Player R")
-      wordle_judgement <- judge_wordle(wordle_a_processed, wordle_b_processed)
-      
-      new_entries <- tribble(
-        ~date, ~gameType, ~wonBy, ~margin,
-        Sys.Date(), "Connections", con_judgement$wonBy, con_judgement$margin,
-        Sys.Date(), "Wordle", wordle_judgement$wonBy, wordle_judgement$margin
-      )
-      
-      results(bind_rows(results(), new_entries))
-    } else {
-      shiny::showNotification("Please fill in all fields before submitting.", type = "error")
-    }
+
+server <- function (input, output, session) {
+  # Read initial data from Google Sheets
+  values <- reactive({
+    read_sheet(ss = sheet_id, sheet = "gameplays")
   })
   
-  output$resultsTable <- DT::renderDataTable({
-    DT::datatable(results(), options = list(pageLength = 5, autoWidth = TRUE))
+  main_sheet_values <- reactive({
+    read_sheet(ss = sheet_id, sheet = "results")
+  })
+  
+  # Update table on app load
+  output$resultsTable <- renderDataTable({
+    values()
+  })
+  
+  output$mainSheetTable <- renderDataTable({
+    main_sheet_values() %>%
+      rename(
+        Date = date,
+        `Connections Winner` = connections_won_by,
+        `Connections Win Margin` = connections_margin,
+        `Wordle Winner` = wordle_won_by,
+        `Wordle Win Margin` = wordle_margin,
+        `Crossword Winner` = crossword_won_by,
+        `Crossword Win Margin` = crossword_win_margin
+      )
+  })
+  
+  output$calendarHeatmap <- renderPlot({
+    data <- values()
+    generate_heatmap(data)
+  })
+  
+  # Game heatmaps
+  output$wordleWins <- renderPlot({
+    data <- main_sheet_values()
+   # makeGameHeatmap(data, "Aman", "wordle")
+    # makeGameHeatmap(data, "Aman", "connections")
+  })
+  
+  todays_entries <- reactive({
+    data <- values()
+    data %>% filter(date == as.Date(Sys.Date()), player %in% c("Aman", "Rhea"))
+  })
+  
+  
+  observe({
+    todays_data <- values() %>%
+      filter(date == Sys.Date()) %>%
+      group_by(player) %>%
+      summarise(
+        wordle_filled = any(!is.na(wordle)),
+        connections_filled = any(!is.na(connections)),
+        crossword_filled = any(!is.na(crossword)),
+        .groups = 'drop'
+      )
+    
+    # Check if both players have all games filled
+    if (nrow(todays_data) == 2 &&
+        all(todays_data$wordle_filled) &&
+        all(todays_data$connections_filled) &&
+        all(todays_data$crossword_filled)) {
+      showNotification("All three games for both players are filled", type = "message")
+    }
+    
+    playerDataCheck(session, values, input, output)
+  })
+  
+  
+  observeEvent(input$submit, {
+   
+    
+    
+    data_to_save <-tibble(
+      date = as.character(Sys.Date()),
+      player = as.character(input$player),
+      wordle = as.character(input$player_wordle),
+      connections = as.character(input$player_connections),
+      crossword = ifelse(
+        is.na(input$player_crossword),
+        NA_character_,
+        as.character(input$player_crossword)
+      )
+    )
+    
+    # Append data to Google Sheets with explicit column names
+    sheet_append(ss = sheet_id,
+                 data = data_to_save,
+                 sheet = "gameplays")
+    
+    updated_values <- read_sheet(ss = sheet_id, sheet = "gameplays")
+    
+    updated_values <-updated_values %>%
+      mutate(date = as.Date(date))
+    
+    today <-as.character(Sys.Date())
+    
+    # Now filter using the Date type
+    todays_data <-updated_values %>%
+      filter(date == Sys.Date(), player %in% c("Aman", "Rhea"))
+    
+    if (nrow(todays_data) == 2) {
+      
+      connections_results < -todays_connections(todays_data)
+      crossword_results <- todays_crossword(todays_data)
+      wordle_results < -todays_wordle(todays_data)
+      
+      main_data_to_save < -tibble(
+        date = today,
+        connections_won_by = connections_results$wonBy,
+        connections_margin = connections_results$margin,
+        wordle_won_by = wordle_results$wonBy,
+        wordle_margin = wordle_results$margin,
+        crossword_won_by = crossword_results$wonBy,
+        crossword_margin = crossword_results$margin
+      )
+      sheet_append(ss = sheet_id,
+                   data = main_data_to_save,
+                   sheet = "results")
+    }
+    
+    # Update results table
+    output$resultsTable <-renderDataTable({
+      updated_values
+      
+    })
+    
+    output$mainSheetTable <-renderDataTable({
+      main_sheet_values() %>%
+        rename(
+          Date = date,
+          `Connections Winner` = connections_won_by,
+          `Connections Win Margin` = connections_margin,
+          `Wordle Winner` = wordle_won_by,
+          `Wordle Win Margin` = wordle_margin,
+          `Crossword Winner` = crossword_won_by,
+          `Crossword Win Margin` = crossword_win_margin
+        )
+    })
   })
 }
 
