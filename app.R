@@ -5,12 +5,12 @@ library(DT)
 library(googledrive)
 library(googlesheets4)
 library(shinyjs)
-source("connections.r")
-source("wordle.r")
-source("calendar.r")
-source("playerDataCheck.r")
-source('crossword.r')
-source('gameHeatmaps.r')
+source("./helpers/connections.r")
+source("./helpers/wordle.r")
+source("./helpers/calendar.r")
+source("./helpers/playerDataCheck.r")
+source('./helpers/crossword.r')
+source('./helpers/gameHeatmaps.r')
 
 
 options(gargle_oauth_email = TRUE,

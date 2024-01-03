@@ -1,2 +1,9 @@
 ./.secrets
 .Rproj.user
+wordGames.Rproj
+.secrets/
+.env
+.Rproj.user/
+rsconnect/
+.Rdata
+.Rhistory
