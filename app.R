@@ -11,6 +11,8 @@ source("calendar.r")
 source("playerDataCheck.r")
 source('crossword.r')
 source('gameHeatmaps.r')
+
+
 options(gargle_oauth_email = TRUE,
         gargle_oauth_cache = "./.secrets")
 
@@ -56,7 +58,7 @@ ui  <- dashboardPage(
                       column(8,
                              h3("🏆 Wins"),
                              hr(),
-                             DT::dataTableOutput("mainSheetTable"))
+                             DT::dataTableOutput("resultsTable"))
                     ),
                     box(
                       title = "📊 Visualizations",
@@ -87,7 +89,7 @@ ui  <- dashboardPage(
                       solidHeader = TRUE,
                       width = 12,
                       collapsible = TRUE,
-                      DT::dataTableOutput("resultsTable")
+                      DT::dataTableOutput("rawDataTable")
                     )
                   ))
                 ))
@@ -113,51 +115,28 @@ renderPlayerPlots <- function(playerName, output, dataFunc) {
 
 
 server <- function (input, output, session) {
-  # Read initial data from Google Sheets
-  values <- reactive({
+
+  rawData <- reactive({
     read_sheet(ss = sheet_id, sheet = "gameplays")
   })
   
-  main_sheet_values <- reactive({
+  calculatedResults <- reactive({
     read_sheet(ss = sheet_id, sheet = "results")
   })
   
-  # Update table on app load
-  output$resultsTable <- renderDataTable({
-    values()
-  })
-  
-  output$mainSheetTable <- renderDataTable({
-    main_sheet_values() %>%
-      rename(
-        Date = date,
-        `Connections Winner` = connections_won_by,
-        `Connections Win Margin` = connections_margin,
-        `Wordle Winner` = wordle_won_by,
-        `Wordle Win Margin` = wordle_margin,
-        `Crossword Winner` = crossword_won_by,
-        `Crossword Win Margin` = crossword_win_margin
-      )
-  })
   
   output$calendarHeatmap <- renderPlot({
-    data <- values()
+    data <- rawData()
     generate_heatmap(data)
   })
   
   # Game heatmaps
-  renderPlayerPlots("Aman", output, main_sheet_values)
-  renderPlayerPlots("Rhea", output, main_sheet_values)
+ 
+
 
   
-  todays_entries <- reactive({
-    data <- values()
-    data %>% filter(date == as.Date(Sys.Date()), player %in% c("Aman", "Rhea"))
-  })
-  
-  
   observe({
-    todays_data <- values() %>%
+    whoHasPlayedToday <- rawData() %>%
       filter(date == Sys.Date()) %>%
       group_by(player) %>%
       summarise(
@@ -168,22 +147,62 @@ server <- function (input, output, session) {
       )
     
     # Check if both players have all games filled
-    if (nrow(todays_data) == 2 &&
-        all(todays_data$wordle_filled) &&
-        all(todays_data$connections_filled) &&
-        all(todays_data$crossword_filled)) {
+    if (nrow(whoHasPlayedToday) == 2 &&
+        all(whoHasPlayedToday$wordle_filled) &&
+        all(whoHasPlayedToday$connections_filled) &&
+        all(whoHasPlayedToday$crossword_filled)) {
       showNotification("All three games for both players are filled", type = "message")
     }
     
-    playerDataCheck(session, values, input, output)
+    playerDataCheck(session, rawData, input, output)
+
+    today <- as.character(Sys.Date())
+    updated_values <- read_sheet(ss = sheet_id, sheet = "gameplays")
+    if (!today %in% calculatedResults()$date) {
+    
+      
+      updated_values <- updated_values %>%
+        mutate(date = as.Date(date)) %>%
+        filter(date == today, player %in% c("Aman", "Rhea"))
+      if (nrow(updated_values) == 2) {
+      
+      connections_results <- todays_connections(updated_values)
+      crossword_results <- todays_crossword(updated_values)
+      wordle_results <- todays_wordle(updated_values)
+      
+      main_data_to_save <- tibble(
+        date = today,
+        connections_won_by = connections_results$wonBy,
+        connections_margin = connections_results$margin,
+        wordle_won_by = wordle_results$wonBy,
+        wordle_margin = wordle_results$margin,
+        crossword_won_by = crossword_results$wonBy,
+        crossword_margin = crossword_results$margin
+      ) %>% head(1)
+      
+     
+      sheet_append(ss = sheet_id,
+                   data = main_data_to_save,
+                   sheet = "results")
+      }
+      
+    }
+    renderPlayerPlots("Aman", output, updated_values)
+    renderPlayerPlots("Rhea", output, updated_values)
   })
   
   
+  
+
+  
+  # Update results table
+  output$rawDataTable <-renderDataTable({
+    updated_values
+    
+  })
+  
   observeEvent(input$submit, {
-   
-    
-    
-    data_to_save <-tibble(
+    newInputData <-tibble(
       date = as.character(Sys.Date()),
       player = as.character(input$player),
       wordle = as.character(input$player_wordle),
@@ -195,60 +214,23 @@ server <- function (input, output, session) {
       )
     )
     
-    # Append data to Google Sheets with explicit column names
     sheet_append(ss = sheet_id,
-                 data = data_to_save,
+                 data = newInputData,
                  sheet = "gameplays")
     
-    updated_values <- read_sheet(ss = sheet_id, sheet = "gameplays")
-    
-    updated_values <-updated_values %>%
-      mutate(date = as.Date(date))
-    
-    today <-as.character(Sys.Date())
-    
-    # Now filter using the Date type
-    todays_data <-updated_values %>%
-      filter(date == Sys.Date(), player %in% c("Aman", "Rhea"))
-    
-    if (nrow(todays_data) == 2) {
-      
-      connections_results < -todays_connections(todays_data)
-      crossword_results <- todays_crossword(todays_data)
-      wordle_results < -todays_wordle(todays_data)
-      
-      main_data_to_save < -tibble(
-        date = today,
-        connections_won_by = connections_results$wonBy,
-        connections_margin = connections_results$margin,
-        wordle_won_by = wordle_results$wonBy,
-        wordle_margin = wordle_results$margin,
-        crossword_won_by = crossword_results$wonBy,
-        crossword_margin = crossword_results$margin
+  })
+  
+  output$resultsTable <-renderDataTable({
+    calculatedResults() %>%
+      rename(
+        Date = date,
+        `Connections Winner` = connections_won_by,
+        `Connections Win Margin` = connections_margin,
+        `Wordle Winner` = wordle_won_by,
+        `Wordle Win Margin` = wordle_margin,
+        `Crossword Winner` = crossword_won_by,
+        `Crossword Win Margin` = crossword_win_margin
       )
-      sheet_append(ss = sheet_id,
-                   data = main_data_to_save,
-                   sheet = "results")
-    }
-    
-    # Update results table
-    output$resultsTable <-renderDataTable({
-      updated_values
-      
-    })
-    
-    output$mainSheetTable <-renderDataTable({
-      main_sheet_values() %>%
-        rename(
-          Date = date,
-          `Connections Winner` = connections_won_by,
-          `Connections Win Margin` = connections_margin,
-          `Wordle Winner` = wordle_won_by,
-          `Wordle Win Margin` = wordle_margin,
-          `Crossword Winner` = crossword_won_by,
-          `Crossword Win Margin` = crossword_win_margin
-        )
-    })
   })
 }
 
