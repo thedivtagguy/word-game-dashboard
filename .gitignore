@@ -7,3 +7,4 @@ wordGames.Rproj
 rsconnect/
 .RData
 .Rhistory
+*.env
