@@ -20,17 +20,35 @@ sheet_id <- googledrive::drive_get("word-games")$id
 
 playerTabPanelUI <- function(playerName) {
   tabPanel(playerName, fluidRow(
-    div(class = "panel-heading", style = "padding-left: 15px; padding-right: 15px;", 
-        h4(paste("Wordle")),
-        plotOutput(paste("wordleWins", playerName, sep = "_"), width = '100%', height = '200px')
+    div(
+      class = "panel-heading",
+      style = "padding-left: 15px; padding-right: 15px;",
+      h4(paste("Wordle")),
+      plotOutput(
+        paste("wordleWins", playerName, sep = "_"),
+        width = '100%',
+        height = '200px'
+      )
     ),
-    div(class = "panel-heading", style = "padding-left: 15px; padding-right: 15px;",
-        h4(paste("Connections")),
-        plotOutput(paste("connectionsWins", playerName, sep = "_"), width = '100%', height = '200px')
+    div(
+      class = "panel-heading",
+      style = "padding-left: 15px; padding-right: 15px;",
+      h4(paste("Connections")),
+      plotOutput(
+        paste("connectionsWins", playerName, sep = "_"),
+        width = '100%',
+        height = '200px'
+      )
     ),
-    div(class = "panel-heading", style = "padding-left: 15px; padding-right: 15px;",
-        h4(paste("Mini")),
-        plotOutput(paste("crosswordWins", playerName, sep = "_"), width = '100%', height = '200px')
+    div(
+      class = "panel-heading",
+      style = "padding-left: 15px; padding-right: 15px;",
+      h4(paste("Mini")),
+      plotOutput(
+        paste("crosswordWins", playerName, sep = "_"),
+        width = '100%',
+        height = '200px'
+      )
     )
   ))
 }
@@ -97,25 +115,23 @@ ui  <- dashboardPage(
 
 renderPlayerPlots <- function(playerName, output, dataFunc) {
   output[[paste("wordleWins", playerName, sep = "_")]] <- renderPlot({
-    data <- dataFunc()
-    makeGameHeatmap(data, playerName, "wordle", "Win advantage")
+    makeGameHeatmap(dataFunc, playerName, "wordle", "Win advantage")
   })
   
-  output[[paste("connectionsWins", playerName, sep = "_")]] <- renderPlot({
-    data <- dataFunc()
-    makeGameHeatmap(data, playerName, "connections", "Win advantage")
-  })
+  output[[paste("connectionsWins", playerName, sep = "_")]] <-
+    renderPlot({
+      makeGameHeatmap(dataFunc, playerName, "connections", "Win advantage")
+    })
   
-  output[[paste("crosswordWins", playerName, sep = "_")]] <- renderPlot({
-    data <- dataFunc()
-    makeGameHeatmap(data, playerName, "crossword", "Time advantage")
-  })
+  output[[paste("crosswordWins", playerName, sep = "_")]] <-
+    renderPlot({
+      makeGameHeatmap(dataFunc, playerName, "crossword", "Time advantage")
+    })
 }
 
 
 
 server <- function (input, output, session) {
-
   rawData <- reactive({
     read_sheet(ss = sheet_id, sheet = "gameplays")
   })
@@ -131,10 +147,6 @@ server <- function (input, output, session) {
   })
   
   # Game heatmaps
- 
-
-
-  
   observe({
     whoHasPlayedToday <- rawData() %>%
       filter(date == Sys.Date()) %>%
@@ -153,56 +165,48 @@ server <- function (input, output, session) {
         all(whoHasPlayedToday$crossword_filled)) {
       showNotification("All three games for both players are filled", type = "message")
     }
-    
+    # If some fields still remain, selectively update those
     playerDataCheck(session, rawData, input, output)
-
+    
     today <- as.character(Sys.Date())
     updated_values <- read_sheet(ss = sheet_id, sheet = "gameplays")
     if (!today %in% calculatedResults()$date) {
-    
-      
       updated_values <- updated_values %>%
         mutate(date = as.Date(date)) %>%
         filter(date == today, player %in% c("Aman", "Rhea"))
+      
       if (nrow(updated_values) == 2) {
-      
-      connections_results <- todays_connections(updated_values)
-      crossword_results <- todays_crossword(updated_values)
-      wordle_results <- todays_wordle(updated_values)
-      
-      main_data_to_save <- tibble(
-        date = today,
-        connections_won_by = connections_results$wonBy,
-        connections_margin = connections_results$margin,
-        wordle_won_by = wordle_results$wonBy,
-        wordle_margin = wordle_results$margin,
-        crossword_won_by = crossword_results$wonBy,
-        crossword_margin = crossword_results$margin
-      ) %>% head(1)
-      
-     
-      sheet_append(ss = sheet_id,
-                   data = main_data_to_save,
-                   sheet = "results")
+        connections_results <- todays_connections(updated_values)
+        crossword_results <- todays_crossword(updated_values)
+        wordle_results <- todays_wordle(updated_values)
+        
+        main_data_to_save <- tibble(
+          date = today,
+          connections_won_by = connections_results$wonBy,
+          connections_margin = connections_results$margin,
+          wordle_won_by = wordle_results$wonBy,
+          wordle_margin = wordle_results$margin,
+          crossword_won_by = crossword_results$wonBy,
+          crossword_margin = crossword_results$margin
+        ) %>% head(1)
+        
+        
+        sheet_append(ss = sheet_id,
+                     data = main_data_to_save,
+                     sheet = "results")
       }
-      
     }
-    renderPlayerPlots("Aman", output, updated_values)
-    renderPlayerPlots("Rhea", output, updated_values)
-  })
-  
-  
-  
-
-  
-  # Update results table
-  output$rawDataTable <-renderDataTable({
-    updated_values
     
+    newResults <- reactive({
+      read_sheet(ss = sheet_id, sheet = "results")
+    })
+    renderPlayerPlots("Aman", output, newResults())
+    renderPlayerPlots("Rhea", output, newResults())
   })
   
+ 
   observeEvent(input$submit, {
-    newInputData <-tibble(
+    newInputData <- tibble(
       date = as.character(Sys.Date()),
       player = as.character(input$player),
       wordle = as.character(input$player_wordle),
@@ -220,7 +224,7 @@ server <- function (input, output, session) {
     
   })
   
-  output$resultsTable <-renderDataTable({
+  output$resultsTable <- renderDataTable({
     calculatedResults() %>%
       rename(
         Date = date,

@@ -18,25 +18,6 @@ df <- df %>%
   group_by(month) %>%
   mutate(monthweek = 1 + week - min(week))
 
-# makeLong <- function(data) {
-#   # Separate the winner and margin data
-#   winner_data <- data %>%
-#     select(date, ends_with("won_by")) %>%
-#     mutate(date = ymd(date)) %>% 
-#     pivot_longer(cols = -date, names_to = "game_type", values_to = "winner") %>%
-#     mutate(game_type = str_replace(game_type, "_won_by", ""))
-#   
-#   margin_data <- data %>%
-#     select(date, contains("margin")) %>%
-#     pivot_longer(cols = -date, names_to = "game_type", values_to = "margin") %>%
-#     mutate(game_type = str_replace(game_type, "_margin", ""),
-#            game_type = str_replace(game_type, "_win", "")) 
-#   
-#   # Combine the winner and margin data
-#   df <- inner_join(winner_data, margin_data, by = c("date", "game_type"))
-#   
-#   return(df)
-# }
 
 makeLong <- function(data) {
   df <- data %>%
@@ -48,7 +29,8 @@ makeLong <- function(data) {
     
     # Save as a temporary data frame
     inner_join(
-      dummy %>%
+      data %>%
+        mutate(date = ymd(date)) %>% 
         # Select and pivot 'margin' columns
         select(date, ends_with("margin")) %>%
         pivot_longer(cols = -date, names_to = "game_type", values_to = "margin") %>%
@@ -65,21 +47,25 @@ makeGameHeatmap <- function(data,
                             player = "",
                             gameType = "",
                             legendTitle = "") {
+  # print(player, gameType)
   long_df <- makeLong(data)
   full <- df %>%
     left_join(long_df, by  = c("full_date" = "date"))
   
   dates <- unique(full$full_date)
-  values <- full %>%
+  # print(dates)
+  newValues <- full %>%
+    ungroup() %>% 
     filter(game_type == gameType) %>%
     complete(full_date = dates, game_type = gameType) %>%
     mutate(margin = ifelse(winner == player, margin, NA)) %>%
     pull(margin)
+  #print(newValues)
   
-  values[is.na(values)] <- NA_real_
+  newValues[is.na(newValues)] <- NA_real_
   #print(values)
   
-  calendarHeatmap(dates, values, legendtitle = legendTitle)
+  calendarHeatmap(dates, values = newValues, legendtitle = legendTitle)
 }
 
 # makeGameHeatmap(dummy, player = "Aman", gameType = "wordle")
