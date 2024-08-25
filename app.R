@@ -54,63 +54,66 @@ playerTabPanelUI <- function(playerName) {
 }
 
 
-ui  <- dashboardPage(
+ui <- dashboardPage(
   dashboardHeader(title = "🔠🗞 NYT Word Games Logger", titleWidth = 450),
   dashboardSidebar(disable = TRUE),
-  dashboardBody(useShinyjs(),
-                tabsetPanel(
-                  tabPanel("Player Log", fluidRow(
-                    box(
-                      status = "warning",
-                      width = 12,
-                      column(
-                        4,
-                        h3("💾 Log your day"),
-                        hr(),
-                        selectInput("player", "Choose player", choices = c("Aman", "Rhea")),
-                        textAreaInput("player_wordle", "Wordle", ""),
-                        textAreaInput("player_connections", "Connections", ""),
-                        numericInput("player_crossword", "Crossword Time", value = NA),
-                        actionButton("submit", "Submit", class = "btn-primary")
-                      ),
-                      column(8,
-                             h3("🏆 Wins"),
-                             hr(),
-                             DT::dataTableOutput("resultsTable"))
-                    ),
-                    box(
-                      title = "📊 Visualizations",
-                      status = "primary",
-                      solidHeader = TRUE,
-                      width = 12,
-                      column(
-                        4,
-                        h3("Play streak"),
-                        hr(),
-                        plotOutput("calendarHeatmap", width = '100%', height = '800px')
-                      ),
-                      column(
-                        8,
-                        fluidRow(
-                          tabsetPanel(
-                            id = "player_tabs",
-                            playerTabPanelUI("Aman"),
-                            playerTabPanelUI("Rhea")
-                          )
-                      )),
-                    )
-                  )),
-                  tabPanel("Raw Data", fluidRow(
-                    box(
-                      title = "Raw Data",
-                      status = "info",
-                      solidHeader = TRUE,
-                      width = 12,
-                      collapsible = TRUE,
-                      DT::dataTableOutput("rawDataTable")
-                    )
-                  ))
-                ))
+  dashboardBody(
+    useShinyjs(),
+    tabsetPanel(
+      tabPanel("Player Log", fluidRow(
+        box(
+          status = "warning",
+          width = 12,
+          column(
+            4,
+            h3("💾 Log your day"),
+            hr(),
+            selectInput("player", "Choose player", choices = c("Aman", "Rhea")),
+            textAreaInput("player_wordle", "Wordle", ""),
+            textAreaInput("player_connections", "Connections", ""),
+            numericInput("player_crossword", "Crossword Time", value = NA),
+            actionButton("submit", "Submit", class = "btn-primary")
+          ),
+          column(8,
+                 h3("🏆 Wins"),
+                 hr(),
+                 DT::dataTableOutput("resultsTable"))
+        ),
+        box(
+          title = "📊 Visualizations",
+          status = "primary",
+          solidHeader = TRUE,
+          width = 12,
+          column(
+            4,
+            h3("Play streak"),
+            hr(),
+            plotOutput("calendarHeatmap", width = '100%', height = '800px')
+          ),
+          column(
+            8,
+            fluidRow(
+              tabsetPanel(
+                id = "player_tabs",
+                playerTabPanelUI("Aman"),
+                playerTabPanelUI("Rhea")
+              )
+            )
+          ),
+        )
+      )),
+      tabPanel("Raw Data", fluidRow(
+        box(
+          title = "Raw Data",
+          status = "info",
+          solidHeader = TRUE,
+          width = 12,
+          collapsible = TRUE,
+          DT::dataTableOutput("rawDataTable")
+        )
+      ))
+    )
+  )
 )
 
 renderPlayerPlots <- function(playerName, output, dataFunc) {
@@ -206,6 +209,9 @@ server <- function (input, output, session) {
   
  
   observeEvent(input$submit, {
+    shinyjs::disable("submit")
+    shinyjs::html("submit", "Submitting...")
+    
     newInputData <- tibble(
       date = as.character(Sys.Date()),
       player = as.character(input$player),
@@ -218,11 +224,77 @@ server <- function (input, output, session) {
       )
     )
     
-    sheet_append(ss = sheet_id,
-                 data = newInputData,
-                 sheet = "gameplays")
-    
+    tryCatch({
+      sheet_append(ss = sheet_id,
+                   data = newInputData,
+                   sheet = "gameplays")
+      
+      # Calculate streaks
+      updated_data <- read_sheet(ss = sheet_id, sheet = "gameplays")
+      streaks <- calculate_streaks(updated_data, input$player)
+      
+      showModal(modalDialog(
+        title = "Success!",
+        div(
+          style = "text-align: center;",
+          h3("Your day has been successfully logged!"),
+          hr(),
+          div(
+            style = "display: flex; justify-content: space-around;",
+            div(
+              h5("Current Streak"),
+              p(style = "font-size: 24px; font-weight: bold;", streaks$current_streak)
+            ),
+            div(
+              h5("Longest Streak"),
+              p(style = "font-size: 24px; font-weight: bold;", streaks$longest_streak)
+            )
+          )
+        ),
+        footer = modalButton("Close"),
+        size = "m",
+        easyClose = TRUE
+      ))
+      
+      # Reload page after 5 seconds
+      shinyjs::delay(5000, {
+        session$reload()
+      })
+      
+    }, error = function(e) {
+      showModal(modalDialog(
+        title = "Error",
+        paste("An error occurred while submitting your data:", e$message),
+        easyClose = TRUE,
+        footer = NULL,
+        size = "m"
+      ))
+      
+      # Reload page after 3 seconds
+      shinyjs::delay(3000, {
+        session$reload()
+      })
+    })
   })
+  
+  addCustomCSS <- function() {
+    shinyjs::inlineCSS("
+      .modal-dialog { 
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) !important;
+      }
+    ")
+  }
+  
+  # Call the function to add custom CSS
+  addCustomCSS()
+  
+  output$rawDataTable <-renderDataTable({
+    rawData()
+  })
+    
   
   output$resultsTable <- renderDataTable({
     calculatedResults() %>%

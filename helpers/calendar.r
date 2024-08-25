@@ -4,10 +4,10 @@ df  <-  tibble(full_date = seq(dmy("01/01/2024"),
                                dmy("31/12/2024"),
                                "days")) %>%
   mutate(
-    weekday = wday(full_date, label = T, week_start = 7),
-    month = month(full_date, label = T),
-    date = yday(full_date),
-    week = epiweek(full_date)
+    weekday = lubridate::wday(full_date, label = T, week_start = 7),
+    month = lubridate::month(full_date, label = T),
+    date = lubridate::yday(full_date),
+    week = lubridate::epiweek(full_date)
   )
 
 df$week[df$month == "Dec" & df$week == 1] = 53
@@ -72,8 +72,21 @@ generate_heatmap <- function(todays_data) {
 }
 
 
-
-
+calculate_streaks <- function(data, player) {
+  data %>%
+    filter(player == !!player) %>%
+    arrange(date) %>%
+    mutate(
+      streak_group = cumsum(c(1, diff(as.Date(date)) != 1)),
+      streak_length = sequence(rle(streak_group)$lengths)
+    ) %>%
+    summarise(
+      current_streak = if_else(max(date) == Sys.Date(), 
+                               last(streak_length), 
+                               0),
+      longest_streak = max(streak_length)
+    )
+}
 
 
 

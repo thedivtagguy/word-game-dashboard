@@ -7,10 +7,10 @@ df  <-  tibble(full_date = seq(dmy("01/01/2024"),
                                dmy("31/12/2024"),
                                "days")) %>%
   mutate(
-    weekday = wday(full_date, label = T, week_start = 7),
-    month = month(full_date, label = T),
-    date = yday(full_date),
-    week = epiweek(full_date)
+    weekday = lubridate::wday(full_date, label = T, week_start = 7),
+    month = lubridate::month(full_date, label = T),
+    date = lubridate::yday(full_date),
+    week = lubridate::epiweek(full_date)
   )
 
 df$week[df$month == "Dec" & df$week == 1] = 53
