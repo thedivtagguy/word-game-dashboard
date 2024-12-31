@@ -3,8 +3,8 @@ library(tidyverse)
 # https://dominikkoch.github.io/Calendar-Heatmap/
 # dummy <- read_csv("dummy_data.csv")
 source('./helpers/githubStyleHeatmap.r')
-df  <-  tibble(full_date = seq(dmy("01/01/2024"),
-                               dmy("31/12/2024"),
+df  <-  tibble(full_date = seq(dmy(paste0("01/01/", format(Sys.Date(), "%Y"))),
+                               dmy(paste0("31/12/", format(Sys.Date(), "%Y"))),
                                "days")) %>%
   mutate(
     weekday = wday(full_date, label = T, week_start = 7),
@@ -69,6 +69,3 @@ makeGameHeatmap <- function(data,
 }
 
 # makeGameHeatmap(dummy, player = "Aman", gameType = "wordle")
-
-
-
