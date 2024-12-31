@@ -1,4 +1,3 @@
-
 #' Calendar Heatmap
 #' 
 #' Creates a colour coded calendar visualising time series data
@@ -80,19 +79,29 @@ calendarHeatmap <- function(dates, values, title = "", subtitle = "", legendtitl
   df$year  <-  as.factor(format(df$date, "%Y"))
   df$month <- as.numeric(format(df$date, "%m"))
   df$doy   <- as.numeric(format(df$date, "%j"))
-  #df$dow  <- as.numeric(format(df$date, "%u"))
-  #df$woy  <- as.numeric(format(df$date, "%W"))
   df$dow <- as.numeric(format(df$date, "%w"))
+  # Ensure week numbers are consistent across year boundaries
   df$woy <- as.numeric(format(df$date, "%U")) + 1
+  df$woy[df$month == 12 & df$woy == 1] <- 53  # Handle last week of year correctly
   
   df$dowmapped <- ordered(df$dow, levels = 6:0)
   levels(df$dowmapped) <- rev(c("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"))
   
   g <- ggplot(df, aes(woy, dowmapped, fill = value)) + 
     geom_tile(colour = "darkgrey") + 
-    facet_wrap(~year, ncol = 1) + # Facet for years
-    coord_equal(xlim = c(2.5,54)) + # square tiles
-    scale_x_continuous(breaks = 53/12*(1:12)-1.5, labels = c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")) + 
+    facet_wrap(~year, ncol = 1, scales = "free_x") +  # Allow different x-scales per year
+    coord_equal() + # square tiles
+    scale_x_continuous(
+      breaks = function(x) {
+        # Calculate month breaks dynamically for each year
+        month_breaks <- sapply(1:12, function(m) {
+          first_day <- as.Date(paste0(format(min.date, "%Y"), "-", m, "-01"))
+          as.numeric(format(first_day, "%U")) + 1
+        })
+        month_breaks
+      },
+      labels = c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+    ) + 
     my_theme() +
     scale_fill_gradientn(colours = c("#D61818", "#FFAE63", "#FFFFBD", "#B5E384"), na.value = "white",
                          name = legendtitle,
