@@ -305,7 +305,7 @@ server <- function (input, output, session) {
         `Wordle Winner` = wordle_won_by,
         `Wordle Win Margin` = wordle_margin,
         `Crossword Winner` = crossword_won_by,
-        `Crossword Win Margin` = crossword_win_margin
+        `Crossword Win Margin` = crossword_margin
       )
   })
 }

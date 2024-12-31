@@ -1,7 +1,7 @@
 library(tidyverse)
 
-df  <-  tibble(full_date = seq(dmy("01/01/2024"),
-                               dmy("31/12/2024"),
+df  <-  tibble(full_date = seq(dmy(paste0("01/01/", format(Sys.Date(), "%Y"))),
+                               dmy(paste0("31/12/", format(Sys.Date(), "%Y"))),
                                "days")) %>%
   mutate(
     weekday = lubridate::wday(full_date, label = T, week_start = 7),
@@ -17,7 +17,10 @@ df <- df %>%
 
 generate_heatmap <- function(todays_data) {
   
-  todays_data <- todays_data %>%  mutate(date = as.Date(date, format = "%Y-%m-%d"))
+  current_year <- format(Sys.Date(), "%Y")
+  todays_data <- todays_data %>%  
+    mutate(date = as.Date(date, format = "%Y-%m-%d")) %>%
+    filter(format(date, "%Y") == current_year)  # Only use current year's data
   p <- df %>%
     left_join(todays_data, by = c("full_date" = "date")) %>%
     group_by(date) %>%
@@ -65,7 +68,7 @@ generate_heatmap <- function(todays_data) {
     facet_wrap(~ month, nrow = 4, ncol = 3, scales = "free") +
     labs(
       fill = "",
-      title = "Game plays in 2024",
+      title = paste("Game plays in", format(Sys.Date(), "%Y")),
       subtitle = "Daily participation of Aman and Rhea, minimum two plays"
     )
   return(p) 

@@ -3,8 +3,8 @@ library(tidyverse)
 # https://dominikkoch.github.io/Calendar-Heatmap/
 # dummy <- read_csv("dummy_data.csv")
 source('./helpers/githubStyleHeatmap.r')
-df  <-  tibble(full_date = seq(dmy("01/01/2024"),
-                               dmy("31/12/2024"),
+df  <-  tibble(full_date = seq(dmy(paste0("01/01/", format(Sys.Date(), "%Y"))),
+                               dmy(paste0("31/12/", format(Sys.Date(), "%Y"))),
                                "days")) %>%
   mutate(
     weekday = lubridate::wday(full_date, label = T, week_start = 7),
@@ -20,10 +20,13 @@ df <- df %>%
 
 
 makeLong <- function(data) {
+  current_year <- format(Sys.Date(), "%Y")
   df <- data %>%
+    # Filter for current year and transform data
+    mutate(date = ymd(date)) %>%
+    filter(format(date, "%Y") == current_year) %>%
     # Select and pivot 'won_by' columns
     select(date, ends_with("won_by")) %>%
-    mutate(date = ymd(date)) %>% 
     pivot_longer(cols = -date, names_to = "game_type", values_to = "winner") %>%
     mutate(game_type = str_replace(game_type, "_won_by", "")) %>%
     
@@ -31,6 +34,7 @@ makeLong <- function(data) {
     inner_join(
       data %>%
         mutate(date = ymd(date)) %>% 
+        filter(format(date, "%Y") == current_year) %>%
         # Select and pivot 'margin' columns
         select(date, ends_with("margin")) %>%
         pivot_longer(cols = -date, names_to = "game_type", values_to = "margin") %>%
@@ -69,6 +73,3 @@ makeGameHeatmap <- function(data,
 }
 
 # makeGameHeatmap(dummy, player = "Aman", gameType = "wordle")
-
-
-
