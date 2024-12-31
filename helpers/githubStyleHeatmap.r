@@ -69,18 +69,17 @@ calendarHeatmap <- function(dates, values, title = "", subtitle = "", legendtitl
   }
   
   # create empty calendar
-  min.date <- as.Date(paste(format(min(dates), "%Y"),"-1-1",sep = ""))
-  max.date <- as.Date(paste(format(max(dates), "%Y"),"-12-31", sep = ""))
+  current_year <- format(Sys.Date(), "%Y")
+  min.date <- as.Date(paste0(current_year, "-01-01"))
+  max.date <- as.Date(paste0(current_year, "-12-31"))
   df <- data.frame(date = seq(min.date, max.date, by="days"), value = NA)
   na.value.forplot <- 'white'
   # fill in values
   df$value[match(dates, df$date)] <- values
   
-  df$year  <-  as.factor(format(df$date, "%Y"))
   df$month <- as.numeric(format(df$date, "%m"))
   df$doy   <- as.numeric(format(df$date, "%j"))
   df$dow <- as.numeric(format(df$date, "%w"))
-  # Ensure week numbers are consistent across year boundaries
   df$woy <- as.numeric(format(df$date, "%U")) + 1
   df$woy[df$month == 12 & df$woy == 1] <- 53  # Handle last week of year correctly
   
@@ -89,17 +88,17 @@ calendarHeatmap <- function(dates, values, title = "", subtitle = "", legendtitl
   
   g <- ggplot(df, aes(woy, dowmapped, fill = value)) + 
     geom_tile(colour = "darkgrey") + 
-    facet_wrap(~year, ncol = 1, scales = "free_x") +  # Allow different x-scales per year
-    coord_equal() + # square tiles
+    theme(aspect.ratio = 1/4) +  # Control aspect ratio through theme
     scale_x_continuous(
+      expand = c(0, 0),
       breaks = function(x) {
-        # Calculate month breaks dynamically for each year
-        month_breaks <- sapply(1:12, function(m) {
-          first_day <- as.Date(paste0(format(min.date, "%Y"), "-", m, "-01"))
+        # Calculate month breaks dynamically
+        sapply(1:12, function(m) {
+          first_day <- as.Date(paste0(current_year, "-", m, "-01"))
           as.numeric(format(first_day, "%U")) + 1
         })
-        month_breaks
       },
+      limits = c(0, 54),  # Ensure consistent width
       labels = c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
     ) + 
     my_theme() +
@@ -123,59 +122,54 @@ calendarHeatmap <- function(dates, values, title = "", subtitle = "", legendtitl
                        yend=numeric(), 
                        year=character())
   
-  for(years in levels(df$year)){
-    df.subset <- df[df$year == years,]
+  y.start <- df$dow[1]
+  x.start <- df$woy[1]
+  
+  x.top.left <- ifelse(y.start == 0, x.start - 0.5, x.start + 0.5)
+  y.top.left <- 7.5
+  x.top.right <- df$woy[nrow(df)] + 0.5
+  y.top.right <- 7.5
+  
+  x.mid.left01 <- x.start - 0.5
+  y.mid.left01 <- 7.5 - y.start
+  x.mid.left02 <- x.start + 0.5
+  y.mid.left02 <- 7.5 - y.start
+  
+  x.bottom.left <- x.start - 0.5
+  y.bottom.left <- 0.5
+  x.bottom.right <- ifelse(y.start == 6, df$woy[nrow(df)] + 0.5, df$woy[nrow(df)] - 0.5)
+  y.bottom.right <- 0.5
+  
+  my.lines<-rbind(my.lines,
+                  data.frame(x    = c(x.top.left, x.bottom.left, x.mid.left01, x.top.left, x.bottom.left), 
+                             y    = c(y.top.left, y.bottom.left, y.mid.left01, y.top.left, y.bottom.left),
+                             xend = c(x.top.right, x.bottom.right, x.mid.left02, x.mid.left02, x.mid.left01), 
+                             yend = c(y.top.right, y.bottom.right, y.mid.left02, y.mid.left02, y.mid.left01), 
+                             year = current_year))
+  
+  # lines to separate months
+  for (j in 1:12)  {
+    df.subset.month <- max(df$doy[df$month == j])
+    x.month <- df$woy[df.subset.month]
+    y.month <- df$dow[df.subset.month]
     
-    y.start <- df.subset$dow[1]
-    x.start <- df.subset$woy[1]
+    x.top.mid <- x.month + 0.5
+    y.top.mid <- 7.5
     
-    x.top.left <- ifelse(y.start == 0, x.start - 0.5, x.start + 0.5)
-    y.top.left <- 7.5
-    x.top.right <- df.subset$woy[nrow(df.subset)] + 0.5
-    y.top.right <- 7.5
+    x.mid.mid01 <- x.month - 0.5
+    y.mid.mid01 <- 7.5 - y.month - 1
+    x.mid.mid02 <- x.month + 0.5
+    y.mid.mid02 <- 7.5 - y.month - 1
     
-    x.mid.left01 <- x.start - 0.5
-    y.mid.left01 <- 7.5 - y.start
-    x.mid.left02 <- x.start + 0.5
-    y.mid.left02 <- 7.5 - y.start
-    
-    x.bottom.left <- x.start - 0.5
-    y.bottom.left <- 0.5
-    x.bottom.right <- ifelse(y.start == 6, df.subset$woy[nrow(df.subset)] + 0.5, df.subset$woy[nrow(df.subset)] - 0.5)
-    y.bottom.right <- 0.5
+    x.bottom.mid <- ifelse(y.month == 6, x.month + 0.5, x.month - 0.5)
+    y.bottom.mid <- 0.5
     
     my.lines<-rbind(my.lines,
-                    data.frame(x    = c(x.top.left, x.bottom.left, x.mid.left01, x.top.left, x.bottom.left), 
-                               y    = c(y.top.left, y.bottom.left, y.mid.left01, y.top.left, y.bottom.left),
-                               xend = c(x.top.right, x.bottom.right, x.mid.left02, x.mid.left02, x.mid.left01), 
-                               yend = c(y.top.right, y.bottom.right, y.mid.left02, y.mid.left02, y.mid.left01), 
-                               year = years))
-    
-    # lines to separate months
-    for (j in 1:12)  {
-      df.subset.month <- max(df.subset$doy[df.subset$month == j])
-      x.month <- df.subset$woy[df.subset.month]
-      y.month <- df.subset$dow[df.subset.month]
-      
-      x.top.mid <- x.month + 0.5
-      y.top.mid <- 7.5
-      
-      x.mid.mid01 <- x.month - 0.5
-      y.mid.mid01 <- 7.5 - y.month - 1
-      x.mid.mid02 <- x.month + 0.5
-      y.mid.mid02 <- 7.5 - y.month - 1
-      
-      x.bottom.mid <- ifelse(y.month == 6, x.month + 0.5, x.month - 0.5)
-      y.bottom.mid <- 0.5
-      
-      my.lines<-rbind(my.lines,
-                      data.frame(x    = c(x.top.mid, x.mid.mid01, x.mid.mid01), 
-                                 y    = c(y.top.mid, y.mid.mid01, y.mid.mid01),
-                                 xend = c(x.mid.mid02, x.mid.mid02, x.bottom.mid), 
-                                 yend = c(y.mid.mid02, y.mid.mid02, y.bottom.mid), 
-                                 year = years))
-      
-    }
+                    data.frame(x    = c(x.top.mid, x.mid.mid01, x.mid.mid01), 
+                               y    = c(y.top.mid, y.mid.mid01, y.mid.mid01),
+                               xend = c(x.mid.mid02, x.mid.mid02, x.bottom.mid), 
+                               yend = c(y.mid.mid02, y.mid.mid02, y.bottom.mid), 
+                               year = current_year))
     
   }
   

@@ -20,10 +20,13 @@ df <- df %>%
 
 
 makeLong <- function(data) {
+  current_year <- format(Sys.Date(), "%Y")
   df <- data %>%
+    # Filter for current year and transform data
+    mutate(date = ymd(date)) %>%
+    filter(format(date, "%Y") == current_year) %>%
     # Select and pivot 'won_by' columns
     select(date, ends_with("won_by")) %>%
-    mutate(date = ymd(date)) %>% 
     pivot_longer(cols = -date, names_to = "game_type", values_to = "winner") %>%
     mutate(game_type = str_replace(game_type, "_won_by", "")) %>%
     
@@ -31,6 +34,7 @@ makeLong <- function(data) {
     inner_join(
       data %>%
         mutate(date = ymd(date)) %>% 
+        filter(format(date, "%Y") == current_year) %>%
         # Select and pivot 'margin' columns
         select(date, ends_with("margin")) %>%
         pivot_longer(cols = -date, names_to = "game_type", values_to = "margin") %>%

@@ -17,7 +17,10 @@ df <- df %>%
 
 generate_heatmap <- function(todays_data) {
   
-  todays_data <- todays_data %>%  mutate(date = as.Date(date, format = "%Y-%m-%d"))
+  current_year <- format(Sys.Date(), "%Y")
+  todays_data <- todays_data %>%  
+    mutate(date = as.Date(date, format = "%Y-%m-%d")) %>%
+    filter(format(date, "%Y") == current_year)  # Only use current year's data
   p <- df %>%
     left_join(todays_data, by = c("full_date" = "date")) %>%
     group_by(date) %>%
